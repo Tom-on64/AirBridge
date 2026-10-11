@@ -1,6 +1,8 @@
 package com.airbridge.app
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -59,6 +62,10 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val PERM_LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
+    }
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.applyLocale(newBase))
     }
 
     private var pendingDevice: AirplayDevice? = null
@@ -76,7 +83,7 @@ class MainActivity : ComponentActivity() {
                     .putExtra(CastService.EXTRA_NAME, device.name)
                 ContextCompat.startForegroundService(this, intent)
             } else {
-                CastController.addLog("未获得屏幕/音频捕获授权")
+                CastController.addLog("Screen/audio capture permission not granted")
             }
         }
 
@@ -135,7 +142,7 @@ private fun App(onConnect: (AirplayDevice) -> Unit) {
                 ExtendedFloatingActionButton(
                     onClick = { showManual = true },
                     icon = { Text("+") },
-                    text = { Text("手动添加") }
+                    text = { Text(stringResource(R.string.add_manual)) }
                 )
             }
         ) { padding ->
@@ -167,7 +174,9 @@ private fun App(onConnect: (AirplayDevice) -> Unit) {
         ManualDialog(
             onDismiss = { showManual = false },
             onAdd = { name, ip, port ->
-                CastController.addManual(AirplayDevice(name = name, host = ip, port = port))
+                CastController.addManual(
+                    AirplayDevice(name = name, host = ip, port = port, type = CastController.TYPE_MANUAL)
+                )
                 showManual = false
             }
         )
@@ -183,8 +192,8 @@ private fun SettingsCard(ui: CastController.UiState) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("延迟与网络", style = MaterialTheme.typography.titleMedium)
-            Text("延迟模式（下次连接生效）", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.latency_network), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.latency_hint), style = MaterialTheme.typography.bodySmall)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState())
@@ -195,12 +204,14 @@ private fun SettingsCard(ui: CastController.UiState) {
                         onClick = { CastController.setLatencyMode(mode) },
                         label = {
                             Text(
-                                when (mode) {
-                                    LatencyMode.STABLE -> "稳定"
-                                    LatencyMode.LOW -> "低延迟"
-                                    LatencyMode.ULTRA -> "极低延迟"
-                                    LatencyMode.SAFE -> "网络稳定"
-                                },
+                                stringResource(
+                                    when (mode) {
+                                        LatencyMode.STABLE -> R.string.latency_stable
+                                        LatencyMode.LOW -> R.string.latency_low
+                                        LatencyMode.ULTRA -> R.string.latency_ultra
+                                        LatencyMode.SAFE -> R.string.latency_safe
+                                    }
+                                ),
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -209,14 +220,14 @@ private fun SettingsCard(ui: CastController.UiState) {
                 }
             }
             Text(
-                "网络稳定≈2s · 稳定≈1.5s · 低延迟≈0.25s · 极低延迟≈0.1s（弱网推荐网络稳定）",
+                stringResource(R.string.latency_detail),
                 style = MaterialTheme.typography.bodySmall
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("网络稳健模式", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.robust), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Wi-Fi 信号不佳时冗余发包，降低爆音",
+                        stringResource(R.string.robust_desc),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -227,9 +238,9 @@ private fun SettingsCard(ui: CastController.UiState) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("压缩 ALAC", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.alac), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "减小每个音频包，弱网更稳；出现异常时请关闭",
+                        stringResource(R.string.alac_desc),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -238,8 +249,38 @@ private fun SettingsCard(ui: CastController.UiState) {
                     onCheckedChange = { CastController.setAlac(it) }
                 )
             }
+            LanguageRow()
         }
     }
+}
+
+@Composable
+private fun LanguageRow() {
+    val context = LocalContext.current
+    val current = LocaleHelper.getLangCode(context)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(R.string.language),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        FilterChip(
+            selected = current == LocaleHelper.LANG_ENGLISH,
+            onClick = { switchLanguage(context, LocaleHelper.LANG_ENGLISH) },
+            label = { Text(stringResource(R.string.language_en)) }
+        )
+        FilterChip(
+            selected = current == LocaleHelper.LANG_CHINESE,
+            onClick = { switchLanguage(context, LocaleHelper.LANG_CHINESE) },
+            label = { Text(stringResource(R.string.language_zh)) }
+        )
+    }
+}
+
+private fun switchLanguage(context: Context, langCode: String) {
+    val activity = context as? Activity ?: return
+    LocaleHelper.setLanguage(activity.applicationContext, langCode)
+    activity.recreate()
 }
 
 @Composable
@@ -253,7 +294,11 @@ private fun StatusCard(ui: CastController.UiState) {
         ) {
             Text(ui.status, style = MaterialTheme.typography.titleMedium)
             Text(
-                if (ui.discovering) "正在扫描局域网... 已发现 ${ui.devices.size} 个设备" else "设备数: ${ui.devices.size}",
+                if (ui.discovering) {
+                    stringResource(R.string.status_scanning, ui.devices.size)
+                } else {
+                    stringResource(R.string.devices_count, ui.devices.size)
+                },
                 style = MaterialTheme.typography.bodyMedium
             )
             if (ui.connecting) {
@@ -271,9 +316,7 @@ private fun DeviceList(
     onDelete: (AirplayDevice) -> Unit = {}
 ) {
     if (ui.devices.isEmpty()) {
-        Text(
-            "没有发现设备。\n请确认手机和 HomePod 连接的是同一个 Wi-Fi；\n如果自动发现不到，点右下角“手动添加”，输入 HomePod 的 IP（端口 7000）。"
-        )
+        Text(stringResource(R.string.no_devices))
         return
     }
     LazyColumn(
@@ -294,11 +337,11 @@ private fun DeviceList(
                         Text("${d.host}:${d.port}", style = MaterialTheme.typography.bodySmall)
                     }
                     Button(onClick = { onConnect(d) }, enabled = !ui.connecting) {
-                        Text("连接")
+                        Text(stringResource(R.string.connect))
                     }
-                    if (d.txt.isEmpty()) {
+                    if (d.type == CastController.TYPE_MANUAL || d.txt.isEmpty()) {
                         TextButton(onClick = { onDelete(d) }) {
-                            Text("删除")
+                            Text(stringResource(R.string.delete))
                         }
                     }
                 }
@@ -317,12 +360,12 @@ private fun VolumeCard(ui: CastController.UiState, onVolume: (Float) -> Unit, on
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("正在投射", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.casting), style = MaterialTheme.typography.titleMedium)
             Button(onClick = { CastController.toggleTestTone(context) }) {
-                Text(if (ui.testToneOn) "停止测试音" else "播放测试音 (440Hz)")
+                Text(if (ui.testToneOn) stringResource(R.string.test_tone_stop) else stringResource(R.string.test_tone_play))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("音量")
+                Text(stringResource(R.string.volume))
                 Slider(
                     value = ui.volume,
                     onValueChange = onVolume,
@@ -337,7 +380,7 @@ private fun VolumeCard(ui: CastController.UiState, onVolume: (Float) -> Unit, on
                 onClick = onStop,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
             ) {
-                Text("停止投射")
+                Text(stringResource(R.string.stop_casting))
             }
         }
     }
@@ -360,13 +403,13 @@ private fun LogPanel(logs: List<String>, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("日志", style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.logs), style = MaterialTheme.typography.labelMedium)
                 TextButton(onClick = { CastController.clearLogs() }) {
-                    Text("清空")
+                    Text(stringResource(R.string.clear_logs))
                 }
             }
             Text(
-                text = logs.takeLast(40).joinToString("\n").ifEmpty { "日志区" },
+                text = logs.takeLast(40).joinToString("\n").ifEmpty { stringResource(R.string.logs_empty) },
                 style = MaterialTheme.typography.bodySmall,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier
@@ -384,31 +427,32 @@ private fun ManualDialog(
     onDismiss: () -> Unit,
     onAdd: (name: String, ip: String, port: Int) -> Unit
 ) {
-    var name by remember { mutableStateOf("HomePod") }
+    val defaultName = stringResource(R.string.default_device_name)
+    var name by remember { mutableStateOf(defaultName) }
     var ip by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("7000") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("手动添加设备") },
+        title = { Text(stringResource(R.string.add_manual_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("名称") },
+                    label = { Text(stringResource(R.string.name)) },
                     singleLine = true
                 )
                 OutlinedTextField(
                     value = ip,
                     onValueChange = { ip = it },
-                    label = { Text("IP 地址") },
+                    label = { Text(stringResource(R.string.ip_address)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
                 )
                 OutlinedTextField(
                     value = port,
                     onValueChange = { port = it },
-                    label = { Text("端口") },
+                    label = { Text(stringResource(R.string.port)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
@@ -422,12 +466,12 @@ private fun ManualDialog(
                 },
                 enabled = ip.isNotBlank() && (port.toIntOrNull()?.let { it in 1..65535 } ?: false)
             ) {
-                Text("添加")
+                Text(stringResource(R.string.add))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

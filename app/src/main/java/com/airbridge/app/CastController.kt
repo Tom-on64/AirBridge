@@ -25,7 +25,7 @@ object CastController {
         val latencyMode: LatencyMode = LatencyMode.STABLE,
         val robustMode: Boolean = false,
         val alacOn: Boolean = true,
-        val status: String = "未连接",
+        val status: String = "Not connected",
         val logs: List<String> = emptyList(),
         val volume: Float = 25f
     )
@@ -37,7 +37,11 @@ object CastController {
     private val logExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     var sender: RaopSender? = null
 
-    private const val PREFS = "airbridge_prefs"
+    const val PREFS = "airbridge_prefs"
+
+    /** Mark manually added devices with this type so they persist and can be deleted. */
+    const val TYPE_MANUAL = "_manual"
+
     private const val KEY_MANUAL = "manual_devices"
     private const val KEY_LATENCY = "latency_mode"
     private const val KEY_ROBUST = "robust_mode"
@@ -46,16 +50,20 @@ object CastController {
 
     fun startDiscovery(context: Context) {
         if (discoverer != null) return
-        _state.update { it.copy(discovering = true, logs = it.logs + "正在扫描局域网 AirPlay 设备...") }
+        _state.update { it.copy(discovering = true, logs = it.logs + "Scanning LAN for AirPlay devices...") }
         discoverer = MdnsDiscoverer(
             context = context,
             listener = { devices ->
                 val prev = _state.value.devices.map { it.host to it.port }
-                _state.update { it.copy(devices = devices.sortedBy { d -> d.name }) }
-                val now = _state.value.devices
+                // Both discovery channels (NsdManager and the raw mDNS socket) can
+                // report the same device; keep one entry per host:port.
+                val now = devices
+                    .sortedBy { d -> d.name }
+                    .distinctBy { d -> d.host to d.port }
+                _state.update { it.copy(devices = now) }
                 for (d in now) {
                     if ((d.host to d.port) !in prev) {
-                        addLog("发现设备: ${d.name} (${d.host}:${d.port}, ${d.model ?: "AirPlay"})")
+                        addLog("Found device: ${d.name} (${d.host}:${d.port}, ${d.model ?: "AirPlay"})")
                     }
                 }
             },
@@ -73,7 +81,7 @@ object CastController {
         _state.update {
             it.copy(
                 devices = (it.devices + device).distinctBy { d -> d.host to d.port },
-                logs = it.logs + "已手动添加 ${device.name} (${device.host}:${device.port})"
+                logs = it.logs + "Added ${device.name} (${device.host}:${device.port}) manually"
             )
         }
         saveManual(contextForPrefs ?: return)
@@ -83,7 +91,7 @@ object CastController {
         _state.update {
             it.copy(
                 devices = it.devices.filterNot { d -> d.host == device.host && d.port == device.port },
-                logs = it.logs + "已删除 ${device.name} (${device.host}:${device.port})"
+                logs = it.logs + "Removed ${device.name} (${device.host}:${device.port})"
             )
         }
         saveManual(contextForPrefs ?: return)
@@ -108,7 +116,7 @@ object CastController {
                 val host = parts[1]
                 val port = parts[2].toIntOrNull() ?: 7000
                 if (host.isNotBlank()) {
-                    val dev = AirplayDevice(name = name, host = host, port = port, type = "_airplay._tcp.local")
+                    val dev = AirplayDevice(name = name, host = host, port = port, type = TYPE_MANUAL)
                     _state.update {
                         it.copy(devices = (it.devices + dev).distinctBy { d -> d.host to d.port })
                     }
@@ -119,7 +127,7 @@ object CastController {
 
     private fun saveManual(context: Context) {
         val lines = _state.value.devices
-            .filter { it.type == "_manual" || it.txt.isEmpty() }
+            .filter { it.type == TYPE_MANUAL }
             .distinctBy { it.host to it.port }
             .joinToString("\n") { "${it.name}|${it.host}|${it.port}" }
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -135,7 +143,7 @@ object CastController {
             ?.edit()
             ?.putString(KEY_LATENCY, mode.name)
             ?.apply()
-        addLog("延迟模式: ${mode.name}")
+        addLog("Latency mode: ${mode.name}")
     }
 
     fun setRobustMode(on: Boolean) {
@@ -145,7 +153,7 @@ object CastController {
             ?.edit()
             ?.putBoolean(KEY_ROBUST, on)
             ?.apply()
-        addLog(if (on) "已开启网络稳健模式（冗余发包）" else "已关闭网络稳健模式")
+        addLog(if (on) "Network robustness enabled (redundant packets)" else "Network robustness disabled")
     }
 
     fun setAlac(on: Boolean) {
@@ -155,7 +163,7 @@ object CastController {
             ?.edit()
             ?.putBoolean(KEY_ALAC, on)
             ?.apply()
-        addLog(if (on) "已开启压缩 ALAC（减小音频包）" else "已关闭压缩 ALAC（使用未压缩帧）")
+        addLog(if (on) "Compressed ALAC enabled (smaller packets)" else "Compressed ALAC disabled (uncompressed frames)")
     }
 
     fun setConnecting(device: AirplayDevice) {
@@ -163,7 +171,7 @@ object CastController {
             it.copy(
                 connecting = true,
                 streaming = false,
-                status = "正在连接 ${device.name}...",
+                status = "Connecting to ${device.name}...",
                 volume = _state.value.volume
             )
         }
@@ -171,7 +179,7 @@ object CastController {
 
     fun setStreaming(s: RaopSender) {
         sender = s
-        _state.update { it.copy(connecting = false, streaming = true, status = "正在投射 ${s.deviceName}") }
+        _state.update { it.copy(connecting = false, streaming = true, status = "Casting to ${s.deviceName}") }
     }
 
     fun setTestTone(on: Boolean) {
@@ -188,8 +196,8 @@ object CastController {
             it.copy(
                 connecting = false,
                 streaming = false,
-                status = reason ?: "已断开",
-                logs = it.logs + (reason?.let { "已断开: $it" } ?: "已断开")
+                status = reason ?: "Disconnected",
+                logs = it.logs + (reason?.let { "Disconnected: $it" } ?: "Disconnected")
             )
         }
     }
