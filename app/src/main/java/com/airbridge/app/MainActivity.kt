@@ -11,6 +11,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,8 +41,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +59,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.airbridge.app.airplay.AirplayDevice
 import com.airbridge.app.airplay.RaopSender.LatencyMode
 
@@ -134,8 +139,21 @@ private fun App(onConnect: (AirplayDevice) -> Unit) {
     val ui by CastController.state.collectAsState()
     val context = LocalContext.current
     var showManual by remember { mutableStateOf(false) }
+    val systemDark = isSystemInDarkTheme()
+    val darkTheme = when (ui.themeMode) {
+        ThemeHelper.THEME_LIGHT -> false
+        ThemeHelper.THEME_DARK -> true
+        else -> systemDark
+    }
 
-    MaterialTheme {
+    MaterialTheme(colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()) {
+        // 同步状态栏图标颜色，保证深色下可见（窗口背景沿用浅色系统主题）。
+        SideEffect {
+            (context as? Activity)?.window?.let { window ->
+                WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars =
+                    !darkTheme
+            }
+        }
         Scaffold(
             topBar = { TopAppBar(title = { Text("AirBridge") }) },
             floatingActionButton = {
@@ -250,6 +268,7 @@ private fun SettingsCard(ui: CastController.UiState) {
                 )
             }
             LanguageRow()
+            ThemeRow(selected = ui.themeMode)
         }
     }
 }
@@ -281,6 +300,35 @@ private fun switchLanguage(context: Context, langCode: String) {
     val activity = context as? Activity ?: return
     LocaleHelper.setLanguage(activity.applicationContext, langCode)
     activity.recreate()
+}
+
+@Composable
+private fun ThemeRow(selected: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            stringResource(R.string.theme),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        FilterChip(
+            selected = selected == ThemeHelper.THEME_SYSTEM,
+            onClick = { CastController.setThemeMode(ThemeHelper.THEME_SYSTEM) },
+            label = { Text(stringResource(R.string.theme_system)) }
+        )
+        FilterChip(
+            selected = selected == ThemeHelper.THEME_LIGHT,
+            onClick = { CastController.setThemeMode(ThemeHelper.THEME_LIGHT) },
+            label = { Text(stringResource(R.string.theme_light)) }
+        )
+        FilterChip(
+            selected = selected == ThemeHelper.THEME_DARK,
+            onClick = { CastController.setThemeMode(ThemeHelper.THEME_DARK) },
+            label = { Text(stringResource(R.string.theme_dark)) }
+        )
+    }
 }
 
 @Composable

@@ -25,6 +25,7 @@ object CastController {
         val latencyMode: LatencyMode = LatencyMode.STABLE,
         val robustMode: Boolean = false,
         val alacOn: Boolean = true,
+        val themeMode: String = ThemeHelper.THEME_SYSTEM,
         val status: String = "Not connected",
         val logs: List<String> = emptyList(),
         val volume: Float = 25f
@@ -106,8 +107,9 @@ object CastController {
         val mode = runCatching { LatencyMode.valueOf(modeName) }.getOrDefault(LatencyMode.STABLE)
         val robust = prefs.getBoolean(KEY_ROBUST, false)
         val alacOn = prefs.getBoolean(KEY_ALAC, true)
+        val themeMode = ThemeHelper.getThemeMode(context)
         val volume = prefs.getFloat(KEY_VOLUME, 25f).coerceIn(0f, 100f)
-        _state.update { it.copy(latencyMode = mode, robustMode = robust, alacOn = alacOn, volume = volume) }
+        _state.update { it.copy(latencyMode = mode, robustMode = robust, alacOn = alacOn, themeMode = themeMode, volume = volume) }
         val raw = prefs.getString(KEY_MANUAL, "") ?: ""
         for (line in raw.split("\n")) {
             val parts = line.split("|")
@@ -164,6 +166,16 @@ object CastController {
             ?.putBoolean(KEY_ALAC, on)
             ?.apply()
         addLog(if (on) "Compressed ALAC enabled (smaller packets)" else "Compressed ALAC disabled (uncompressed frames)")
+    }
+
+    fun setThemeMode(mode: String) {
+        val normalized = when (mode) {
+            ThemeHelper.THEME_LIGHT, ThemeHelper.THEME_DARK -> mode
+            else -> ThemeHelper.THEME_SYSTEM
+        }
+        _state.update { it.copy(themeMode = normalized) }
+        contextForPrefs?.let { ThemeHelper.setThemeMode(it, normalized) }
+        addLog("Theme mode: $normalized")
     }
 
     fun setConnecting(device: AirplayDevice) {

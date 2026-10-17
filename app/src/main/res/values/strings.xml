@@ -12,6 +12,10 @@
     <string name="language">Language</string>
     <string name="language_en">English</string>
     <string name="language_zh">中文</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
 
     <!-- Device list -->
     <string name="add_manual">Add manually</string>
