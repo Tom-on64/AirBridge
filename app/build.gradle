@@ -8,12 +8,18 @@ android {
     namespace 'com.airbridge.app'
     compileSdk 36
 
+    // Version is sourced from VERSION file (single source of truth)
+    def versionFile = rootProject.file("VERSION")
+    def appVersion = versionFile.text.trim()
+    def versionParts = appVersion.split("\\.")
+    def code = (versionParts[0].toInteger() * 10000) + (versionParts[1].toInteger() * 100) + versionParts[2].toInteger()
+
     defaultConfig {
         applicationId "com.airbridge.app"
         minSdk 29
         targetSdk 36
-        versionCode 15
-        versionName "1.0.0"
+        versionCode code
+        versionName appVersion
     }
 
     def keystorePropsFile = rootProject.file("keystore.properties")
