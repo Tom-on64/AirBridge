@@ -148,7 +148,7 @@ class RaopSender(
     private var controlPort = 0
     private var eventPort = 0
     private var startTs = 0L
-    private var framesSent = 0L
+    @Volatile private var framesSent = 0L
     private var seq = 0
     private var firstAudio = true
     private var pendingVolumeDb = -1000.0

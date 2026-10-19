@@ -93,6 +93,16 @@ class AudioMasterClock(
 
     fun stop() {
         running = false
+        writerThread?.interrupt()
+        pollerThread?.interrupt()
+        try {
+            writerThread?.join(500)
+        } catch (_: Exception) {
+        }
+        try {
+            pollerThread?.join(500)
+        } catch (_: Exception) {
+        }
         try {
             track?.pause()
         } catch (_: Exception) {
@@ -106,10 +116,9 @@ class AudioMasterClock(
         } catch (_: Exception) {
         }
         track = null
-        writerThread?.interrupt()
-        pollerThread?.interrupt()
         writerThread = null
         pollerThread = null
+        measuredRate = 0.0
         usable = false
     }
 

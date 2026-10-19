@@ -15,6 +15,7 @@ class PcmRingBuffer(val capacityFrames: Int) {
         var off = 0
         if (n > capacityFrames) {
             off = (n - capacityFrames) * 2
+            overflowFrames += (n - capacityFrames).toLong()
             n = capacityFrames
         }
         for (i in 0 until n) {
