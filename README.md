@@ -7,7 +7,7 @@
 [![Language](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org/)
 
 **Language / 语言 / 言語:**
-[中文](README.md) | [English](README.en.md) | [日本語](README.ja.md)
+[English](README.en.md) | [中文](README.zh.md) |  [日本語](README.ja.md)
 
 ---
 
